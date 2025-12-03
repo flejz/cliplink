@@ -27,8 +27,8 @@ impl From<Utf8Error> for PacketError {
 /// Transport packet structure
 #[derive(Debug, PartialEq)]
 pub struct Packet<'a> {
-    ty: &'a str,
-    pl: &'a str,
+    pub ty: &'a str,
+    pub pl: &'a str,
 }
 
 impl<'a> Packet<'a> {
