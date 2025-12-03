@@ -1,7 +1,11 @@
-[package]
-name = "cliplink"
+[workspace]
+members = ["cliplink-common", "cliplink-server"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
+[workspace.dependencies]
+cliplink-common = { path = "./cliplink-common" }
 tracing = "0.1.43"

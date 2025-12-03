@@ -3,14 +3,9 @@
 version = 4
 
 [[package]]
-name = "cliplink-common"
-version = "0.1.0"
-
-[[package]]
-name = "cliplink-server"
+name = "cliplink"
 version = "0.1.0"
 dependencies = [
- "cliplink-common",
  "tracing",
 ]
 
