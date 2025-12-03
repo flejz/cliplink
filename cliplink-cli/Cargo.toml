@@ -1,0 +1,8 @@
+[package]
+name = "cliplink-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap = { version = "4.5.53", features = ["derive"] }
+cliplink-common.workspace = true

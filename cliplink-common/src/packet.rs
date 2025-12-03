@@ -1,11 +1,6 @@
 use std::str::Utf8Error;
 
-#[macro_export]
-macro_rules! slice {
-    ($buf:tt[$offset:expr; $size:expr]) => {
-        $buf[$offset..($offset + $size)]
-    };
-}
+use crate::slice;
 
 pub const PACKET_SIZE: usize = 1024;
 pub const SECTION_LEN_SIZE: usize = 8;
@@ -16,14 +11,7 @@ pub const SECTION_PAYLOAD_LEN_OFFSET: usize = 8;
 pub const SECTION_PAYLOAD_OFFSET: usize = 32;
 pub const SECTION_PAYLOAD_SIZE: usize = PACKET_SIZE - SECTION_PAYLOAD_OFFSET;
 
-/// Transport packet structure
 #[derive(Debug, PartialEq)]
-pub struct Packet<'a> {
-    ty: &'a str,
-    pl: &'a str,
-}
-
-#[derive(Debug)]
 pub enum PacketError {
     SectionOverflow,
     BufferOverflow,
@@ -34,6 +22,13 @@ impl From<Utf8Error> for PacketError {
     fn from(_: Utf8Error) -> Self {
         Self::ParsingError
     }
+}
+
+/// Transport packet structure
+#[derive(Debug, PartialEq)]
+pub struct Packet<'a> {
+    ty: &'a str,
+    pl: &'a str,
 }
 
 impl<'a> Packet<'a> {
@@ -82,8 +77,6 @@ impl<'a> Packet<'a> {
             &slice!(buf[SECTION_PAYLOAD_LEN_OFFSET; SECTION_LEN_SIZE]),
         ));
 
-        dbg!(ty_len, pl_len);
-
         if pl_len > SECTION_PAYLOAD_SIZE {
             return Err(PacketError::SectionOverflow);
         } else if SECTION_PAYLOAD_OFFSET + pl_len > PACKET_SIZE {
@@ -96,7 +89,7 @@ impl<'a> Packet<'a> {
         })
     }
 
-    pub fn as_bytes(&'a self) -> Result<[u8; PACKET_SIZE], PacketError> {
+    pub fn to_bytes(&'a self) -> Result<[u8; PACKET_SIZE], PacketError> {
         if self.ty.len() > SECTION_TYPE_SIZE {
             return Err(PacketError::SectionOverflow);
         } else if SECTION_PAYLOAD_OFFSET + self.pl.len() > PACKET_SIZE {
@@ -112,14 +105,12 @@ impl<'a> Packet<'a> {
             .map(|(i, by)| if i < ty_bytes.len() { ty_bytes[i] } else { *by })
             .collect::<Vec<u8>>();
 
-        buf[SECTION_TYPE_LEN_OFFSET..(SECTION_TYPE_LEN_OFFSET + SECTION_LEN_SIZE)]
+        slice!(buf[SECTION_TYPE_LEN_OFFSET; SECTION_LEN_SIZE])
             .copy_from_slice(self.ty.len().to_be_bytes().as_slice());
-        buf[SECTION_PAYLOAD_LEN_OFFSET..(SECTION_PAYLOAD_LEN_OFFSET + SECTION_LEN_SIZE)]
+        slice!(buf[SECTION_PAYLOAD_LEN_OFFSET; SECTION_LEN_SIZE])
             .copy_from_slice(self.pl.len().to_be_bytes().as_slice());
-        buf[SECTION_TYPE_OFFSET..(SECTION_TYPE_OFFSET + SECTION_TYPE_SIZE)]
-            .copy_from_slice(ty_bytes.as_slice());
-        buf[SECTION_PAYLOAD_OFFSET..(SECTION_PAYLOAD_OFFSET + self.pl.len())]
-            .copy_from_slice(self.pl.as_bytes());
+        slice!(buf[SECTION_TYPE_OFFSET; SECTION_TYPE_SIZE]).copy_from_slice(ty_bytes.as_slice());
+        slice!(buf[SECTION_PAYLOAD_OFFSET; self.pl.len()]).copy_from_slice(self.pl.as_bytes());
 
         Ok(buf)
     }
@@ -128,9 +119,9 @@ impl<'a> Packet<'a> {
 #[cfg(test)]
 mod test {
     use crate::{
-        PACKET_SIZE, Packet, SECTION_LEN_SIZE, SECTION_PAYLOAD_LEN_OFFSET, SECTION_PAYLOAD_OFFSET,
-        SECTION_PAYLOAD_SIZE, SECTION_TYPE_LEN_OFFSET, SECTION_TYPE_OFFSET, SECTION_TYPE_SIZE,
-        slice,
+        PACKET_SIZE, Packet, PacketError, SECTION_LEN_SIZE, SECTION_PAYLOAD_LEN_OFFSET,
+        SECTION_PAYLOAD_OFFSET, SECTION_PAYLOAD_SIZE, SECTION_TYPE_LEN_OFFSET, SECTION_TYPE_OFFSET,
+        SECTION_TYPE_SIZE, slice,
     };
 
     const BUF_TY_LEN: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
@@ -157,7 +148,7 @@ mod test {
 
     #[test]
     fn to_bytes() {
-        let buf = Packet::new("syn", "public keypair").as_bytes().unwrap();
+        let buf = Packet::new("syn", "public keypair").to_bytes().unwrap();
 
         assert_eq!(
             slice!(buf[SECTION_TYPE_LEN_OFFSET; SECTION_LEN_SIZE]),
@@ -173,6 +164,21 @@ mod test {
         assert_eq!(
             slice!(buf[SECTION_PAYLOAD_OFFSET + 14; SECTION_PAYLOAD_SIZE - 14]),
             [0u8; SECTION_PAYLOAD_SIZE - 14]
+        );
+
+        // overflowing strings long strings
+        assert_eq!(
+            Packet::new(&"syn".repeat(6), "public keypair")
+                .to_bytes()
+                .unwrap_err(),
+            PacketError::SectionOverflow
+        );
+
+        assert_eq!(
+            Packet::new("syn", &"public keypair".repeat(71))
+                .to_bytes()
+                .unwrap_err(),
+            PacketError::BufferOverflow
         );
     }
 }

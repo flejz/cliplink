@@ -1,5 +1,5 @@
 [workspace]
-members = ["cliplink-common", "cliplink-server"]
+members = ["cliplink-cli","cliplink-common", "cliplink-server"]
 resolver = "3"
 
 [workspace.package]

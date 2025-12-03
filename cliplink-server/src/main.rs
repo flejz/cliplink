@@ -1,36 +1,46 @@
 use cliplink_common::Packet;
-use std::{io::Read, net::TcpListener};
-use tracing::{error, info};
+use std::{
+    io::Read,
+    net::{TcpListener, TcpStream},
+};
 
 fn main() {
     let addr = std::env::var("CL_ADDR").unwrap_or("127.0.0.1".into());
     let port = std::env::var("CL_PORT").unwrap_or("6166".into());
     let bind = format!("{addr}:{port}");
 
-    let socket = TcpListener::bind(bind).expect("failed to bind to {bind}");
+    let socket = TcpListener::bind(&bind).expect("failed to bind to {bind}");
+
+    println!("listening on {bind:?}");
 
     for stream in socket.incoming() {
-        let mut stream = match stream {
+        let stream = match stream {
             Ok(stream) => stream,
             Err(err) => {
-                error!(?err, "incoming connection error");
+                eprintln!("incoming connection error: {err:?}");
                 continue;
             }
         };
 
-        info!("new socket connection");
+        handle(stream);
+    }
+}
+
+fn handle(mut stream: TcpStream) {
+    std::thread::spawn(move || {
+        println!("socket connection");
         let mut buf = [0_u8; 1024];
-        let buf_len = match stream.read(&mut buf) {
+        let _buf_len = match stream.read(&mut buf) {
             Ok(len) => len,
             Err(err) => {
-                error!(?err, "read failure, closing socket");
+                eprintln!("read failure, closing socket: {err:?}");
                 stream
                     .shutdown(std::net::Shutdown::Both)
                     .expect("failed to shutdown");
-                continue;
+                return;
             }
         };
 
-        Packet::parse_bytes(&buf);
-    }
+        dbg!(Packet::parse_bytes(&buf).unwrap());
+    });
 }
