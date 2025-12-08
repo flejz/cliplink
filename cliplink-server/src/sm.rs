@@ -3,35 +3,35 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use cliplink_common::{Config, Packet};
+use cliplink_common::{Config, OwnedPacket, Packet, ToBytes};
 
-pub struct PubKeySyn;
+pub struct SshSyn;
 pub struct EncKey;
 pub struct Connected;
 
 pub enum Input<'a> {
-    PubKeySyn(&'a str),
+    SshSyn(&'a str),
 }
 
 pub enum Output {
-    RsaAck,
-    RsaDeny(&'static str),
+    SshSynAck(String),
+    SshSynDeny(&'static str),
 }
 
 impl<'a> From<&Packet<'a>> for Input<'a> {
     fn from(packet: &Packet<'a>) -> Self {
         match packet.ty {
-            "sshsyn" => Self::PubKeySyn(packet.pl),
+            "sshsyn" => Self::SshSyn(packet.pl),
             _ => unimplemented!("unexpected type"),
         }
     }
 }
 
-impl<'a> From<&Output> for Packet<'a> {
-    fn from(pl: &Output) -> Self {
+impl From<Output> for OwnedPacket {
+    fn from(pl: Output) -> Self {
         match pl {
-            Output::RsaAck => Packet::new("sshsynack", ""),
-            Output::RsaDeny(pl) => Packet::new("sshsyndeny", pl),
+            Output::SshSynAck(pl) => OwnedPacket::new("sshsynack".into(), pl),
+            Output::SshSynDeny(pl) => OwnedPacket::new("sshsyndeny".into(), pl.into()),
             _ => unimplemented!("unexpected type"),
         }
     }
@@ -51,15 +51,20 @@ pub struct StreamState;
 // enckeyack               < enckey (encrypted)
 // copy   (payload)        > copyack
 // paste                   < pasteack (payload)
-
-impl StreamState {
-    pub fn gen_aes256_key(&self, input: Input) -> Result<Output, Output> {
-        if !matches!(input, Input::PubKeySyn(pub_key)) {
-            return Err(Output::RsaDeny("pub key not found"));
-        }
-
-        Ok(Output::RsaAck)
+pub fn validate_ssh_key(input: Input) -> Result<(), Output> {
+    if !matches!(input, Input::SshSyn(pub_key)) {
+        return Err(Output::SshSynDeny("pub key not found"));
     }
+
+    Ok(())
+}
+
+pub fn gen_aes256_key(input: Input) -> Result<Output, Output> {
+    if !matches!(input, Input::SshSyn(pub_key)) {
+        return Err(Output::SshSynDeny("pub key not found"));
+    }
+
+    Ok(Output::SshSynAck(String::default()))
 }
 
 #[cfg(test)]

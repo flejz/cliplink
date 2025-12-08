@@ -1,7 +1,8 @@
 use std::{io::Write, net::TcpStream};
 
 use clap::Parser;
-use cliplink_common::Packet;
+use cliplink_common::{Packet, ToBytes};
+use cliplink_crypto::RsaPrivKey;
 
 /// Cliplink client
 #[derive(Parser, Debug)]
@@ -25,9 +26,18 @@ fn main() {
 
     let mut stream = TcpStream::connect(bind).expect("failed to establish connection");
 
-    let buf = Packet::new("syn", "ack")
-        .to_bytes()
-        .expect("failed to create packet");
+    let rsa_priv_key = RsaPrivKey::default();
+    let rsa_pub_key = rsa_priv_key.pub_key();
+
+    let buf = Packet::new(
+        "syn",
+        rsa_pub_key
+            .to_openssh(None)
+            .expect("failed to generate openssh key repr")
+            .as_str(),
+    )
+    .to_bytes()
+    .expect("failed to create packet");
 
     stream.write(&buf).expect("failed to send packet");
 }

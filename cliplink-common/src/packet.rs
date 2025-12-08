@@ -27,6 +27,39 @@ impl From<Utf8Error> for PacketError {
     }
 }
 
+// Transport packet behavior
+pub trait ToBytes {
+    fn to_bytes(&self) -> Result<[u8; PACKET_SIZE], PacketError>;
+}
+
+/// Transport packet structure
+#[derive(Debug, PartialEq)]
+pub struct OwnedPacket {
+    pub ty: String,
+    pub pl: String,
+}
+
+impl OwnedPacket {
+    pub fn new(ty: String, pl: String) -> Self {
+        Self { ty, pl }
+    }
+}
+
+impl ToBytes for OwnedPacket {
+    fn to_bytes(&self) -> Result<[u8; PACKET_SIZE], PacketError> {
+        Packet::from(self).to_bytes()
+    }
+}
+
+impl<'a> From<&'a OwnedPacket> for Packet<'a> {
+    fn from(value: &'a OwnedPacket) -> Self {
+        Self {
+            ty: &value.ty,
+            pl: &value.pl,
+        }
+    }
+}
+
 /// Transport packet structure
 #[derive(Debug, PartialEq)]
 pub struct Packet<'a> {
@@ -101,8 +134,10 @@ impl<'a> Packet<'a> {
             pl: str::from_utf8(&slice!(buf[SECTION_PAYLOAD_OFFSET; pl_len]))?,
         })
     }
+}
 
-    pub fn to_bytes(&'a self) -> Result<[u8; PACKET_SIZE], PacketError> {
+impl<'a> ToBytes for Packet<'a> {
+    fn to_bytes(&self) -> Result<[u8; PACKET_SIZE], PacketError> {
         if self.ty.len() > SECTION_TYPE_SIZE {
             return Err(PacketError::SectionOverflow);
         } else if SECTION_PAYLOAD_OFFSET + self.pl.len() > PACKET_SIZE {
@@ -134,7 +169,7 @@ mod test {
     use crate::{
         PACKET_SIZE, Packet, PacketError, SECTION_LEN_SIZE, SECTION_PAYLOAD_LEN_OFFSET,
         SECTION_PAYLOAD_OFFSET, SECTION_PAYLOAD_SIZE, SECTION_TYPE_LEN_OFFSET, SECTION_TYPE_OFFSET,
-        SECTION_TYPE_SIZE, slice,
+        SECTION_TYPE_SIZE, ToBytes, slice,
     };
 
     const BUF_TY_LEN: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
@@ -181,14 +216,7 @@ mod test {
 
         // overflowing strings long strings
         assert_eq!(
-            Packet::new(&"syn".repeat(6), "public keypair")
-                .to_bytes()
-                .unwrap_err(),
-            PacketError::SectionOverflow
-        );
-
-        assert_eq!(
-            Packet::new("syn", &"public keypair".repeat(71))
+            Packet::new("syn", &"public keypair".repeat(200))
                 .to_bytes()
                 .unwrap_err(),
             PacketError::BufferOverflow

@@ -1,4 +1,4 @@
-use cliplink_common::Packet;
+use cliplink_common::{PACKET_SIZE, Packet};
 use std::{
     io::Read,
     net::{TcpListener, TcpStream},
@@ -30,30 +30,37 @@ fn main() {
             }
         };
 
-        handle(stream);
+        std::thread::spawn(move || {
+            handle(stream);
+        });
     }
 }
 
 fn handle(mut stream: TcpStream) {
-    std::thread::spawn(move || {
-        let mut buf = Packet::new_buffer();
-        let _ = match stream.read(&mut buf) {
+    let mut buf = Packet::new_buffer();
+
+    let mut unwrap = || -> usize {
+        match stream.read(&mut buf) {
             Ok(len) => len,
             Err(err) => {
                 eprintln!("read failure, closing socket: {err:?}");
                 stream
                     .shutdown(std::net::Shutdown::Both)
                     .expect("failed to shutdown");
-                return;
+
+                panic!("{err}");
             }
-        };
+        }
+    };
 
-        let packet = Packet::from_bytes(&buf).unwrap();
-        //let state = StreamState::default();
-        //let state = state.consume(StreamPayload::from(&packet)).unwrap();
-        //let state = state.consume(StreamPayload::from(&packet)).unwrap();
-        //let _state = state.consume(StreamPayload::from(&packet)).unwrap();
+    let buf_len = unwrap();
+    buf[buf_len..].fill(0x0);
 
-        dbg!(packet);
-    });
+    let packet = Packet::from_bytes(&buf).unwrap();
+    //let state = StreamState::default();
+    //let state = state.consume(StreamPayload::from(&packet)).unwrap();
+    //let state = state.consume(StreamPayload::from(&packet)).unwrap();
+    //let _state = state.consume(StreamPayload::from(&packet)).unwrap();
+
+    dbg!(packet);
 }

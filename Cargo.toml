@@ -8,5 +8,6 @@ edition = "2024"
 
 [workspace.dependencies]
 cliplink-common = { path = "./cliplink-common" }
+cliplink-crypto = { path = "./cliplink-crypto" }
 thiserror = "2.0.17"
 tracing = "0.1.43"
