@@ -1,8 +1,11 @@
-use std::str::Utf8Error;
+use std::{
+    ops::{Deref, DerefMut},
+    str::Utf8Error,
+};
 
 use crate::slice;
 
-pub const PACKET_SIZE: usize = 1024;
+pub const PACKET_SIZE: usize = 2048;
 pub const SECTION_LEN_SIZE: usize = 8;
 pub const SECTION_TYPE_LEN_OFFSET: usize = 0;
 pub const SECTION_TYPE_OFFSET: usize = 16;
@@ -31,12 +34,22 @@ pub struct Packet<'a> {
     pub pl: &'a str,
 }
 
+impl<'a> Default for Packet<'a> {
+    fn default() -> Self {
+        Self::new("", "")
+    }
+}
+
 impl<'a> Packet<'a> {
     pub fn new(ty: &'a str, pl: &'a str) -> Self {
         Self { ty, pl }
     }
 
-    /// Packets are 1024 bytes long structures compose of header and content bytes, as follows
+    pub fn new_buffer() -> [u8; PACKET_SIZE] {
+        [0u8; PACKET_SIZE]
+    }
+
+    /// Packets are `PACKET_SIZE` bytes long structures compose of header and content bytes, as follows
     /// * type length: 8 bytes (big-endian)
     /// * payload length: 8 bytes (big-endian)
     /// * type: 16 bytes
@@ -53,10 +66,10 @@ impl<'a> Packet<'a> {
     /// |              type              |
     /// |--------------------------------| ---
     /// |                                |  |
-    /// |             payload            |  | **62 rows (992 bytes total)**
+    /// |             payload            |  | **up to PACKET_SIZE**
     /// |                                |  |
     /// |--------------------------------| ---
-    pub fn parse_bytes(buf: &'a [u8; PACKET_SIZE]) -> Result<Self, PacketError> {
+    pub fn from_bytes(buf: &'a [u8; PACKET_SIZE]) -> Result<Self, PacketError> {
         fn to_usize_bytes(src: &[u8]) -> [u8; 8] {
             let mut out = [0u8; 8];
             let n = src.len().min(8);
@@ -133,15 +146,15 @@ mod test {
     ];
 
     #[test]
-    fn parse_bytes() {
-        let mut buf = [0u8; PACKET_SIZE];
+    fn from_bytes() {
+        let mut buf = Packet::new_buffer();
         slice!(buf[SECTION_TYPE_LEN_OFFSET; SECTION_LEN_SIZE]).copy_from_slice(&BUF_TY_LEN);
         slice!(buf[SECTION_PAYLOAD_LEN_OFFSET; SECTION_LEN_SIZE]).copy_from_slice(&BUF_PL_LEN);
         slice!(buf[SECTION_TYPE_OFFSET; SECTION_TYPE_SIZE]).copy_from_slice(&BUF_TY);
         slice!(buf[SECTION_PAYLOAD_OFFSET; 14]).copy_from_slice(&BUF_PL);
 
         assert_eq!(
-            Packet::parse_bytes(&buf).unwrap(),
+            Packet::from_bytes(&buf).unwrap(),
             Packet::new("syn", "public keypair")
         );
     }

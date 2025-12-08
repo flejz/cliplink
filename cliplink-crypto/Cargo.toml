@@ -1,0 +1,14 @@
+[package]
+name = "cliplink-crypto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+aes-gcm = "0.10.3"
+base64 = "0.22.1"
+cliplink-common.workspace = true
+rand = "0.8"
+rsa = "0.9.9"
+sha2 = "0.10.9"
+ssh-key = { version = "0.6.7", features = ["crypto", "ed25519", "encryption", "rsa"] }
+thiserror.workspace = true

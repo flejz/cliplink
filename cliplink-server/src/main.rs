@@ -2,9 +2,10 @@ use cliplink_common::Packet;
 use std::{
     io::Read,
     net::{TcpListener, TcpStream},
+    ops::DerefMut,
 };
 
-use crate::sm::{StreamPayload, StreamState, StreamStateTransition};
+use crate::sm::StreamState;
 
 mod sm;
 
@@ -35,8 +36,8 @@ fn main() {
 
 fn handle(mut stream: TcpStream) {
     std::thread::spawn(move || {
-        let mut buf = [0_u8; 1024];
-        let _buf_len = match stream.read(&mut buf) {
+        let mut buf = Packet::new_buffer();
+        let _ = match stream.read(&mut buf) {
             Ok(len) => len,
             Err(err) => {
                 eprintln!("read failure, closing socket: {err:?}");
@@ -47,12 +48,12 @@ fn handle(mut stream: TcpStream) {
             }
         };
 
-        let packet = Packet::parse_bytes(&buf).unwrap();
-        let state = StreamState::new(stream);
-        let state = state.transition(StreamPayload::from(&packet)).unwrap();
-        let state = state.transition(StreamPayload::from(&packet)).unwrap();
-        let _state = state.transition(StreamPayload::from(&packet)).unwrap();
+        let packet = Packet::from_bytes(&buf).unwrap();
+        //let state = StreamState::default();
+        //let state = state.consume(StreamPayload::from(&packet)).unwrap();
+        //let state = state.consume(StreamPayload::from(&packet)).unwrap();
+        //let _state = state.consume(StreamPayload::from(&packet)).unwrap();
 
-        dbg!(Packet::parse_bytes(&buf).unwrap());
+        dbg!(packet);
     });
 }
