@@ -5,4 +5,5 @@ edition.workspace = true
 
 [dependencies]
 cliplink-common.workspace = true
-tracing.workspace = true
+cliplink-crypto.workspace = true
+thiserror.workspace = true

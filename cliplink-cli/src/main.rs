@@ -1,8 +1,12 @@
 use std::{io::Write, net::TcpStream};
 
 use clap::Parser;
-use cliplink_common::{Packet, ToBytes};
+use cliplink_common::{PACKET_SIZE, Packet};
 use cliplink_crypto::RsaPrivKey;
+
+use crate::conn::{Connection, ConnectionError};
+
+mod conn;
 
 /// Cliplink client
 #[derive(Parser, Debug)]
@@ -24,20 +28,20 @@ fn main() {
 
     let bind = format!("{addr}:{port}");
 
-    let mut stream = TcpStream::connect(bind).expect("failed to establish connection");
+    let stream = TcpStream::connect(bind).expect("failed to establish connection");
 
-    let rsa_priv_key = RsaPrivKey::default();
-    let rsa_pub_key = rsa_priv_key.pub_key();
+    handle(stream).expect("failed to handle")
+}
 
-    let buf = Packet::new(
-        "syn",
-        rsa_pub_key
-            .to_openssh(None)
-            .expect("failed to generate openssh key repr")
-            .as_str(),
-    )
-    .to_bytes()
-    .expect("failed to create packet");
+fn handle(stream: TcpStream) -> Result<(), ConnectionError> {
+    let mut buf = [0u8; PACKET_SIZE];
+    let conn = Connection::from(stream);
 
-    stream.write(&buf).expect("failed to send packet");
+    let mut conn = conn.send_ssh_key()?;
+    conn.read_bytes(&mut buf)?;
+    let mut conn = conn.parse_aes256_key(&Packet::from_bytes(&buf))?;
+
+    conn.write_packet_sec(Packet::new(b"eita", b"porra"))?;
+
+    Ok(())
 }

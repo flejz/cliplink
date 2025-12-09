@@ -2,3 +2,7 @@
 name = "cliplink-common"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+paste = "1.0.15"
+thiserror.workspace = true

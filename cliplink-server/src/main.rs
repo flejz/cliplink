@@ -1,13 +1,12 @@
 use cliplink_common::{PACKET_SIZE, Packet};
 use std::{
-    io::Read,
     net::{TcpListener, TcpStream},
-    ops::DerefMut,
+    time::Duration,
 };
 
-use crate::sm::StreamState;
+use crate::conn::{Connection, ConnectionError};
 
-mod sm;
+mod conn;
 
 fn main() {
     let addr = std::env::var("CL_ADDR").unwrap_or("127.0.0.1".into());
@@ -36,31 +35,22 @@ fn main() {
     }
 }
 
-fn handle(mut stream: TcpStream) {
-    let mut buf = Packet::new_buffer();
+fn handle(stream: TcpStream) -> Result<(), ConnectionError> {
+    let mut buf = [0u8; PACKET_SIZE];
+    let mut conn = Connection::from(stream);
 
-    let mut unwrap = || -> usize {
-        match stream.read(&mut buf) {
-            Ok(len) => len,
-            Err(err) => {
-                eprintln!("read failure, closing socket: {err:?}");
-                stream
-                    .shutdown(std::net::Shutdown::Both)
-                    .expect("failed to shutdown");
+    let _ = conn.read_bytes(&mut buf)?;
+    let conn = conn.validate_ssh_key(&Packet::from_bytes(&buf))?;
+    let mut conn = conn.gen_aes256_key()?;
 
-                panic!("{err}");
-            }
-        }
-    };
+    loop {
+        let packet = conn.read_packet_sec()?;
 
-    let buf_len = unwrap();
-    buf[buf_len..].fill(0x0);
+        dbg!(
+            String::from_utf8_lossy(packet.ty()?),
+            String::from_utf8_lossy(packet.payload()?)
+        );
+    }
 
-    let packet = Packet::from_bytes(&buf).unwrap();
-    //let state = StreamState::default();
-    //let state = state.consume(StreamPayload::from(&packet)).unwrap();
-    //let state = state.consume(StreamPayload::from(&packet)).unwrap();
-    //let _state = state.consume(StreamPayload::from(&packet)).unwrap();
-
-    dbg!(packet);
+    Ok(())
 }

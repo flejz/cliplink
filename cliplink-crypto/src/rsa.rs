@@ -2,7 +2,7 @@ use rsa::{BigUint, Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey, traits::PublicK
 use ssh_key::{private::KeypairData, public::KeyData};
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum RsaError {
     #[error("key not supported")]
     KeyNotSupported,
 
@@ -22,12 +22,12 @@ pub enum Error {
 pub struct RsaPubKey(RsaPublicKey);
 
 impl RsaPubKey {
-    pub fn from_openssh(pub_key: &[u8]) -> Result<Self, Error> {
+    pub fn from_openssh(pub_key: &[u8]) -> Result<Self, RsaError> {
         let pub_key = ssh_key::public::PublicKey::from_openssh(str::from_utf8(pub_key)?)?;
 
         let rsa = match pub_key.key_data() {
             KeyData::Rsa(rsa) => rsa,
-            _ => return Err(Error::KeyNotSupported),
+            _ => return Err(RsaError::KeyNotSupported),
         };
 
         let rsa = RsaPublicKey::new(
@@ -38,7 +38,7 @@ impl RsaPubKey {
         Ok(Self(rsa))
     }
 
-    pub fn to_openssh(&self, comment: Option<String>) -> Result<String, Error> {
+    pub fn to_openssh(&self, comment: Option<String>) -> Result<String, RsaError> {
         let pub_key = ssh_key::public::RsaPublicKey::try_from(self.0.clone())?;
         let pub_key = ssh_key::PublicKey::new(
             ssh_key::public::KeyData::Rsa(pub_key),
@@ -48,7 +48,7 @@ impl RsaPubKey {
         Ok(pub_key.to_openssh()?)
     }
 
-    pub fn encrypt_pkcs1v15(&self, buf: &[u8]) -> Result<Vec<u8>, Error> {
+    pub fn encrypt_pkcs1v15(&self, buf: &[u8]) -> Result<Vec<u8>, RsaError> {
         let mut rng = rand::thread_rng();
         Ok(self.0.encrypt(&mut rng, Pkcs1v15Encrypt, buf)?)
     }
@@ -72,7 +72,7 @@ impl Default for RsaPrivKey {
 }
 
 impl RsaPrivKey {
-    pub fn from_openssh(priv_key: &[u8]) -> Result<Self, Error> {
+    pub fn from_openssh(priv_key: &[u8]) -> Result<Self, RsaError> {
         let priv_key = ssh_key::private::PrivateKey::from_openssh(priv_key)?;
 
         let rsa = match priv_key.key_data() {
@@ -91,16 +91,16 @@ impl RsaPrivKey {
                 if ret.size().saturating_mul(8) >= 2048 {
                     ret
                 } else {
-                    return Err(Error::MinimumKeySize2048);
+                    return Err(RsaError::MinimumKeySize2048);
                 }
             }
-            _ => return Err(Error::KeyNotSupported),
+            _ => return Err(RsaError::KeyNotSupported),
         };
 
         Ok(Self(rsa))
     }
 
-    pub fn decrypt_pkcs1v15(&self, buf: &[u8]) -> Result<Vec<u8>, Error> {
+    pub fn decrypt_pkcs1v15(&self, buf: &[u8]) -> Result<Vec<u8>, RsaError> {
         Ok(self.0.decrypt(Pkcs1v15Encrypt, &buf)?)
     }
 
