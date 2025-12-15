@@ -1,12 +1,15 @@
 use cliplink_common::{PACKET_SIZE, Packet};
-use std::{
-    net::{TcpListener, TcpStream},
-    time::Duration,
+use std::net::{TcpListener, TcpStream};
+
+use crate::{
+    conn::{Connection, ConnectionError},
+    repository::InMemoryRepository,
+    session::{Session, SessionError},
 };
 
-use crate::conn::{Connection, ConnectionError};
-
 mod conn;
+mod repository;
+mod session;
 
 fn main() {
     let addr = std::env::var("CL_ADDR").unwrap_or("127.0.0.1".into());
@@ -35,22 +38,15 @@ fn main() {
     }
 }
 
-fn handle(stream: TcpStream) -> Result<(), ConnectionError> {
+fn handle(stream: TcpStream) -> Result<(), SessionError> {
     let mut buf = [0u8; PACKET_SIZE];
     let mut conn = Connection::from(stream);
 
-    let _ = conn.read_bytes(&mut buf)?;
+    let _ = conn.read_bytes(&mut buf).map_err(ConnectionError::from)?;
     let conn = conn.validate_ssh_key(&Packet::from_bytes(&buf))?;
-    let mut conn = conn.gen_aes256_key()?;
+    let conn = conn.gen_aes256_key()?;
+    let mut session = Session::new(conn, Box::new(InMemoryRepository::default())); // TODO:
 
-    loop {
-        let packet = conn.read_packet_sec()?;
-
-        dbg!(
-            String::from_utf8_lossy(packet.ty()?),
-            String::from_utf8_lossy(packet.payload()?)
-        );
-    }
-
+    session.blocking_handle()?;
     Ok(())
 }

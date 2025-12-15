@@ -2,11 +2,14 @@ use std::{io::Write, net::TcpStream};
 
 use clap::Parser;
 use cliplink_common::{PACKET_SIZE, Packet};
-use cliplink_crypto::RsaPrivKey;
 
-use crate::conn::{Connection, ConnectionError};
+use crate::{
+    conn::{Connection, ConnectionError},
+    session::{Session, SessionError},
+};
 
 mod conn;
+mod session;
 
 /// Cliplink client
 #[derive(Parser, Debug)]
@@ -19,6 +22,10 @@ struct Args {
     /// Host machine address
     #[arg(long, default_value = "127.0.0.1")]
     host: String,
+
+    /// Host machine address
+    #[arg(short, long)]
+    clip: Option<String>,
 }
 
 fn main() {
@@ -33,15 +40,21 @@ fn main() {
     handle(stream).expect("failed to handle")
 }
 
-fn handle(stream: TcpStream) -> Result<(), ConnectionError> {
+fn handle(stream: TcpStream) -> Result<(), SessionError> {
     let mut buf = [0u8; PACKET_SIZE];
     let conn = Connection::from(stream);
 
     let mut conn = conn.send_ssh_key()?;
-    conn.read_bytes(&mut buf)?;
-    let mut conn = conn.parse_aes256_key(&Packet::from_bytes(&buf))?;
+    conn.read_bytes(&mut buf).unwrap(); // TODO: fix
+    let conn = conn.parse_aes256_key(&Packet::from_bytes(&buf))?;
+    let mut session = Session::new(conn);
 
-    conn.write_packet_sec(Packet::new(b"eita", b"porra"))?;
+    session.paste(None, b"xungoro".to_vec())?;
+    let clip = session.copy(None)?;
+    println!(
+        "{}",
+        String::from_utf8(clip).expect("failed to serialize string")
+    );
 
     Ok(())
 }

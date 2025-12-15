@@ -165,6 +165,14 @@ impl Connection<HandshakeAck> {
 }
 
 impl Connection<Secure> {
+    pub fn id(&self) -> Result<String, ConnectionError> {
+        Ok(self
+            .rsa_pub_key
+            .as_ref()
+            .expect("no rsa key available")
+            .to_openssh(None)?)
+    }
+
     pub fn read_packet_sec(&mut self) -> Result<Packet, ConnectionError> {
         let mut buf = [0u8; NONCE_SIZE + PACKET_SIZE + GCM_AUTHENTICATION_TAG_SIZE];
         let _ = self.read_bytes(&mut buf)?;
@@ -183,6 +191,7 @@ impl Connection<Secure> {
         let aes_key = self.aes_key.as_ref().expect("no aes key available");
 
         let (nonce, enc_buf) = aes_key.encrypt(packet.as_bytes())?;
+        dbg!(nonce.len(), enc_buf.len());
 
         let mut inline_buf = Vec::with_capacity(nonce.len() + enc_buf.len());
         inline_buf.extend_from_slice(&nonce);

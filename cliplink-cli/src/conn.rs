@@ -4,8 +4,8 @@ use std::{
     net::TcpStream,
 };
 
-use cliplink_common::{Packet, PacketError};
-use cliplink_crypto::{AES_256_SIZE, Aes256, RsaPrivKey};
+use cliplink_common::{PACKET_SIZE, Packet, PacketError};
+use cliplink_crypto::{AES_256_SIZE, Aes256, GCM_AUTHENTICATION_TAG_SIZE, NONCE_SIZE, RsaPrivKey};
 
 pub enum Input {
     SshHandshakeAck(Vec<u8>),
@@ -162,6 +162,20 @@ impl Connection<HandshakeAck> {
 }
 
 impl Connection<Secure> {
+    pub fn read_packet_sec(&mut self) -> Result<Packet, ConnectionError> {
+        let mut buf = [0u8; NONCE_SIZE + PACKET_SIZE + GCM_AUTHENTICATION_TAG_SIZE];
+        let _ = self.read_bytes(&mut buf)?;
+
+        let mut nonce = [0u8; NONCE_SIZE];
+        nonce.copy_from_slice(&buf[0..NONCE_SIZE]);
+
+        let aes_key = self.aes_key.as_ref().expect("no aes key available");
+        let mut dec_buf = [0u8; PACKET_SIZE];
+        dec_buf.copy_from_slice(&aes_key.decrypt(nonce, &buf[NONCE_SIZE..])?);
+
+        Ok(Packet::from_bytes(&dec_buf))
+    }
+
     pub fn write_packet_sec(&mut self, packet: Packet) -> Result<usize, ConnectionError> {
         let aes_key = self.aes_key.as_ref().expect("no aes key available");
 
