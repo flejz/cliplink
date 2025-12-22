@@ -1,10 +1,10 @@
-use std::{io::Write, net::TcpStream};
+use std::net::TcpStream;
 
 use clap::Parser;
 use cliplink_common::{PACKET_SIZE, Packet};
 
 use crate::{
-    conn::{Connection, ConnectionError},
+    conn::Connection,
     session::{Session, SessionError},
 };
 
